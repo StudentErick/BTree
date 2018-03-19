@@ -1,0 +1,318 @@
+\documentclass[12pt]{article}
+\usepackage{ctex}
+\usepackage{amsmath} 
+\usepackage{amssymb} 
+\usepackage{enumerate}
+\usepackage{clrscode3e}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{geometry}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\usepackage{listings} 
+\usepackage{graphicx}
+\geometry{a4paper,left=2cm,right=2cm,top=1cm,bottom=1cm}
+%\newcommand{\song}{\CJKfamily{song}} 
+%\newcommand{\xiaosihao}{\fontsize{15pt}{\baselineskip}\selectfont}
+\begin{document}
+	\newpage
+	\section{B-Tree的定义}
+	一颗B\_Tree是一个具有下列性质的有根数，假设根结点是T.root:
+	\begin{enumerate}
+		\item 每个结点的性质
+		\begin{enumerate}
+			\item $x.n$ 当前结点中关键字的个数
+			\item $x.n$个关键子本身 $x.key_1,\ x.key_2,\ \cdots,\ x.key_{x.n}$非降序排列，使得$x.key_1 \leqslant x.key_2 \leqslant \cdots \leqslant x.key_{x.n}$
+			\item  $x.leaf$是一个$bool$至。如果$x$是叶子结点，则为$TRUE$，否则为$FALSE$
+		\end{enumerate}
+		\item 每个内部结点有$x.n+1$个指向孩子的指针$x.c_1,\ x.c_2,\ \cdots,\ x.c_n$。叶子结点没有孩子，它们的孩子指针无定义。
+		\item 关键字$x.key_i$对存储在各子树的关键字加以分割：如果$k_i$是任意一个存储在以$x.c_i$为根的子树中的关键字，那么
+		\[k_1\leqslant x.key_1\leqslant k_2\leqslant x.key_2\leqslant\cdots\leqslant x.key_{x.n}\leqslant k_{x.n+1}\]
+		\item 每个叶子结点具有相同的深度，即树高$h$
+		\item 每个结点的关键字个数有上界和下界。用最小度数的固定整数$t\geqslant 2$表示这些上下界:
+		\begin{enumerate}
+			\item 除根结点之外，每个结点至少有$t-1$个关键字和$t$个孩子。非空树的情况下，根结点至少有一个关键字。
+			\item 每个结点最多有$2t-1$个关键字和$2t$个孩子。当一个结点有$2t$个孩子时，该结点是满的。
+		\end{enumerate}
+	\end{enumerate}
+	\section{B-Tree的高度}
+	如果$n\geqslant 1$，对于任意一颗包含$n$个关键字、高度是$h$、最小度数$t\geqslant 2$的B\_Tree，都有：
+	\[h\leqslant \log_{t}{\dfrac{n+1}{2}}\]
+	
+	\section{B-Tree查找关键字}
+	B树寻找关键字的过程类似于二叉搜索树,区别在于二叉搜索树在每个结点只需要确定两个方向,而B树需要确定多个方向.查找过程采用递归的方式,这里使用尾递归.易于理解,编译优化后效率较高.B树搜索过程需要进行$O(\log_tn)$次磁盘的读取,总的时间复杂度为$O(t\log_tn)$
+	   \begin{codebox}
+	 	\Procname{$\proc{B-TREE-SESRCH}(x,k)$}
+	 	\li $i=1$
+	 	\li \While \ $i\leqslant x.n\ and \ k>x.key_i$
+	 	\li \Then
+	 			$i=i+1$
+	 		\End
+	 	\li \If\ $x\leqslant x.n\ and\ k==x.key_i$
+	 	\li \Then
+	 			$\Return (x,i)$
+	 		\End
+	 	\li \ElseIf $x.leaf$
+	 	\li    \Then \Return $NIL$
+	 	    \End
+	 	\li \Else 
+	 	\li \Then$\proc{DISK\-READ}(x,c_i)$
+	 	\li  \qquad\quad  \Return $\proc{B-TREE-SESRCH}(x.c_i,k)$
+	 	    \End
+	   \end{codebox}
+  	\section{B-Tree的插入}
+  	往B树插入元素的操作永远在B树的叶子结点上进行. 一个叶子根据B树的定义,除根结点外,每个结点的元素个数介于$t-1$和$2t-1$之间,所以插入元素的时候要考虑维护B树的性质.
+  	
+  	插入过程分为三种情况讨论:
+  	\begin{enumerate}
+  		\item 初始化情况,直接在根结点插入
+  		\item 直接插入叶子结点后,满足B树的性质
+  		\item 插入叶子结点不满足B树的性质,此时需要对叶子结点进行分裂
+  	\end{enumerate}
+  
+    情况1比较简单,可以直接进行. 情况2和3都是递归的过程. 在向下搜索的过程中,为了避免回溯的发生,不能等到找到需要插入的结点才进行分裂,而是在递归向下的过程中,分裂沿途的每一个满结点.采取这样的操作后,如果是情况2,可以直接插入;如果是情况3,那么可以保证分裂叶子结点是,父结点不是满结点,不必回溯.分裂结点是使B树增高的唯一途径,而且一次只能增加一个高度.
+    
+    辅助过程$\proc{B-TREE-INSERT-NOFULL}$,决定了递归下降的方向和插入的位置,参数$x$表示关键字插入的结点,$k$表示关键字. 分裂过程$\proc{B-TREE-SPLIT-CHILD}(x,i)$表示分裂结点$x$的第$i$个孩子.$\proc{B-TREE-INSERTT}(T,k)$表示插入元素$k$
+  	\begin{codebox}
+  		\Procname{$\proc{B-TREE-SPLIT-CHILD}$(x,i)} 
+  		\li $z=\proc{NEW\_NODE}()$
+  		\li $y=x.c_i$
+  		\li $z.leaf=x.leaf$
+  		\li $z.n=t-1$
+  		\li \For $z=1$ \To $t-1$
+  		\li \Then $z.key_j=y.key_{j+t}$
+  			\End
+  		\li \If not $y.leaf$
+  		\li \For $j=1$ \To $t$
+  		\li \Then $z.c_i=y.c_{j+t}$
+  			\End
+  		\li $y.n=t-1$
+  		\li \For $j=x.n+1$ \Downto $i+1$
+  		\li \Then $x.c_{i+1}=x.c_{i}$
+  			\End
+  		\li $x.c_{i+1}=z$
+  		\li \For $j=x.n$ \Downto $i$
+  		\li \Then $x.key_{j+1}=x.key_j$
+  			\End
+  		\li $x.key_i=y.key_t$
+  		\li $x.n=x.n+1$
+  		\li $\proc{DISK-WRITE}(x)$
+  		\li $\proc{DISK-WRITE}(y)$
+  		\li $\proc{DISK-WRITE}(z)$
+  	\end{codebox}
+    \begin{codebox}
+    	\Procname{$\proc{B-TREE-INSERTT-NOFULL}$(x,k)}
+    	\li $i=x.n$
+    	\li \If $x.leaf$
+    	\li \Then \While$i\geqslant 1\ and\ k<x.key_i$
+    	\li       \Then $x.key_{i+1}=x.key_{i}$
+    	\li             $i=i-1$
+    			  \End
+    	\li       $x.key_{i+1}=k$
+    	\li       $x.n=x.n+1$
+    	\li       $\proc{DISK-WRITE(x)}$
+    		\End
+    	\li \Else \While $i\geqslant 1\ and\ k<x.key_{i}$
+    	\li \Then \Then $i=i-1$
+    			  \End
+    	\li       $i=i+1$
+    	\li 	  $\proc{DISK-READ}(x.c_i)$
+    	\li		  \If $x.c_i.n==2t-1$
+    	\li       \Then $\proc{B-TREE-SPLIT-CHILD}(x,i)$
+    	\li             \If $k>x.key_i$
+    	\li 		    \Then $i=i+1$
+    					\End
+    			  \End
+    	\li       $\proc{B-TREE-INSERT-NOFULL}(x.c_i,k)$
+    \end{codebox}
+	\begin{codebox}
+		\Procname{$\proc{B-TREE-INSERTT}$(T,k)}
+		\li $r=T.root$
+		\li \If $r.n==2t-1$
+		\li \Then $s=\proc{NEW-NODE}()$
+		\li 	  $T.root=s$
+		\li 	  $s.leaf=FALSE$
+		\li    	  $s.n=0$
+		\li       $s.c_1=r$
+		\li       $\proc{B-TREE-SPLIT-CHILD}(s,1)$
+		\li       $\proc{B-TREE-INSERT-NOFULL}(s,k)$
+			\End 
+		\li \Else $\proc{B-TREE-INSERT-NONFULL}(r,k)$
+	\end{codebox}
+	\section{B-TREE的删除}
+	B树的删除分为3个主要情况:
+	
+	\begin{enumerate}
+		\item 关键字$k$在结点$x$中,$x$是叶结点,直接在$x$中删除$k$
+		\item 关键字$k$在结点$x$中,$x$是内部结点,操作如下:
+		\begin{enumerate}
+			\item 结点$x$前于$k$的子结点$y$至少含有$t$个关键字,找出$k$在以$y$为根的子树中的前驱$k'$,\textbf{递归地}删除$k'$,并在$x$中用$k'$代替$k$.
+			\item 对称的情况,如果$y$中少于$t-1$个结点,检查结点$x$中后于$k$的子结点$z$.
+			如果$z$有$t$个关键字,则找出$k$在以$z$为根的子树中的后继$k'$.\textbf{递归}地删除$k'$,并在$x$中用$k'$代替$k$;
+			\item $y$和$z$都只是有$t-1$个结点,则把$k$和$z$合并进入结点$y$,此时的$x$失去了$k$和指向$z$的指针,且$y$包含$t-1$个关键字.释放$z$,\textbf{递归}地从$y$中删除$k$
+		\end{enumerate}
+		\item 关键字$k$不在内部结点$x$中,则必包含于$x.c_i$中.如果$x.c_i$只有$t-1$个关键字,那么执行这两步保证下降到一个至少包含$t$个关键字的结点.
+		
+		\begin{enumerate}
+			\item 如果$x.c_i$只有$t-1$个关键字,但它的兄弟至少有$t$个关键字,则把$x$中的某个关键字下降到$x.c_i$中,讲$x.c_i$的相邻左兄弟或右兄弟的一个关键字升至$x$,讲该兄弟中相应的孩子指针移到$x.c_i$中,使$x.c_i$增加一个关键字.
+			\item 如果$x.c_i$以及$x.c_i$的所有兄弟结点都只有$t-1$个关键字,则把$x.c_i$与一个兄弟合并,即把$x$的一个关键字移到新合并的结点,使之成为该结点的中间关键字.
+		\end{enumerate}
+	\end{enumerate}
+	几个函数的说明:
+	\begin{enumerate}
+		\item $\proc{MERGE-NODE}(x,i,y,z)$表示把内结点$x$的第$i$个孩子$y$和第$i+1$个孩子$z$合并,形成一个新结点$y$
+		\item $\proc{B-TREE-PREDECESSOR}(y)$表示某结点在前驱子树根是$y$的情况下,查找在$y$中的递归意义上的前驱结点.使用迭代就行.
+		\item $\proc{B-TREE-SUCCESSOR}(z)$表示某结点在后继子树根是$z$的情况下,查找在$z$中递归意义上的后继结点.
+		\item $\proc{B-TREE-SHIFT-TO-RIGHT-CHILD}(x,i,y,z)$把$x$的第$i$左孩子$y$的一个结点转移给$y$的右兄弟$z$
+		\item $\proc{B-TREE-SHIFT-TO-LEFT-CHILD}(x,i,y,z)$把$x$的第$i+1$右孩子$z$的一个结点转移给$z$的左兄弟$y$
+		\item $\proc{B-TREE-DELETE-NONONE}(y,k)$删除内部结点$y$中的元素$k$
+		\item $\proc{DISK-WRITE}(x)$把$x$的数据写入磁盘
+		\item $\proc{FREE-NODE}(x)$释放$x$占用的空间
+	\end{enumerate}
+	\begin{codebox}
+		\Procname{$\proc{MERGE-NODE}$(x,i,y,z)}
+		\li $y.n=2t-1$
+		\li \For $j=t+1$\To $2t-1$
+		\li \Then $y.key_j=z.key_{j-1}$
+			\End
+		\li $y.key_t=x.key_i$
+		\li \If $not\ y.leaf$
+		\li \Then \For $j=t+1$\To$2t-1$
+		\li 	  \Then $y.c_j=z.c_{j-t}$
+		          \End
+		    \End
+		\li \For $j=i+1$ \To $x.n$
+		\li \Then $x.c_j=x.c_{j+1}$
+			\End 
+		\li $x.n=x,n-1$
+		\li $\proc{FREE-NODE}(z)$
+		\li $\proc{DISK-WRITE}(x)$
+		\li $\proc{DISK-WRITE}(y)$
+		\li $\proc{DISK-WRITE}(z)$
+	\end{codebox}
+	\begin{codebox}
+		\Procname{$\proc{B-TREE-DELETE-NONODE}$(x,k)}
+		\li $i=1$
+		\li \If $x.leaf$  \qquad\Comment Case 1
+		\li \Then \While $i\leq x.n$ and $k>x.key_i$
+	    \li       \Then $i=i+1$
+	              \End
+	    \li       \If $k==x.key_i$
+	    \li       \Then \For $j=i+1$ \To $x.n$
+	    \li 			\Then $x.key_{j-1}=x.key_j$
+	    			    \End
+	    \li             $x.n=x.n-1$
+	    \li             $\proc{DISK-WRITE(x)}$
+	    \li       \Else $error\ "key\ does\ not\ exist"$
+	    		  \End
+	    \li \Else \While $i<=x.n$ and $k>x.key_i$
+	    \li				\Then  $i=i+1$
+	    				\End
+	    \li       $\proc{DISK-READ}(x.c_{i+1})$
+	    \li 	  $y=x.c_i$
+	    \li       \If $i\leqslant x.n$
+	    \li       \Then $\proc{DISK-READ}(x.c_{i+1})$   
+	    \li             $z=x.c_{i+1}$
+	    		  \End 
+	    \li       \If $k==x.key_i$ \qquad\Comment Case 2
+	 	\li       \Then  \If $y.n>t-1$ \qquad\Comment Case 2a
+	 	\li              \Then $k'=\proc{B-SEARCH-PREDECESSOR(y)}$
+	 	\li 				   $\proc{B-TREE-DELETE-NONONE}(y,k')$
+	 	\li                    $x.key_i=k'$
+	 	\li              \ElseIf $z.n>t-1$\qquad\Comment Case 2b
+	 	\li				 \Then $k'=\proc{B-TREE-SUCCESSOR}(z)$
+	 	\li                    $\proc{B-TREE-DELETE-NONONE}(z,k')$			
+	 	\li                    $x.key_i=k'$	 
+	    		         \Else $\proc{B-TREE-MERGE-CHILD}(x,i,y,z)$\qquad\Comment Case 2c
+		\li					   $\proc{B-TREE-DELETE-NONONE}(y,k)$    		         
+	    		  \End
+	    \li       \Else \qquad\Comment Case 3
+	    \li             \If $i>1$
+	    \li				\Then $\proc{DISK-READ}(x.c_{i-1})$
+	    \li                   $p=x.c_{i-1}$
+	   					\End
+	    \li             \If	  $y.n==t-1$
+	    \li 			\Then \If $i>1$ and $p.n>t-1$ \qquad\Comment Case 3a
+	    \li                   \Then $\proc{B-TREE-SHIFT-TO-RIGHT-CHILD}(x,i-1,p,y)$
+	                          \ElseIf $i<=x.n$ and $z.n>t-1$ \qquad\Comment Case 3a
+        \li	                  \Then    $\proc{B-TREE-SHIFT-TO-LEFT-CHILD}(x,i,y,z)$
+        \li                   \ElseIf $i>1$ \qquad\Comment Case 3b
+        \li                   \Then   $\proc{MERGE-NODE}(x,i-1,p,y)$
+        \li                           $y=p$
+        \li                   \Else $\proc{MERGE-NODE}(x,i,y,z)$ \qquad\Comment Case 3b
+        					  \End	
+        					  \End
+        \li		        $\proc{B-TREE-DELETE-NONONE}(y,k)$
+	\end{codebox}
+	\begin{codebox}
+		\Procname{$\proc{B-TREE-PREDECESSOR}$(y)}
+		\li $x=y$
+		\li $i=x.n$
+		\li \While not $x.leaf$
+		\li \Then $\proc{DISK-READ}(x.c_{i+1})$
+		\li       $x=x.c_{i+1}$
+		\li       $i=x.n$
+			\End
+		\li \Return $x.key_i$
+	\end{codebox}
+	\begin{codebox}
+		\Procname{$\proc{B-TREE-SUCCESSOR}$(z)}
+		\li $x=z$
+		\li \While not $x.leaf$
+		\li \Then $\proc{DISK-READ}(x.c_{1})$
+		\li       $x=x.c_1$
+		\End
+		\li \Return $x.key_1$
+	\end{codebox}
+	\begin{codebox}
+		\Procname{$\proc{B-TREE-SHIFT-TO-RIGHT-CHILD}$(x,i,y,z)}
+		\li $z.n=z.n+1$
+		\li $j=z.n$
+		\li \While $j>1$
+		\li \Then $z.key_j=z.key_{j-1}$
+		\li       $j=j-1$
+				  \End
+		\li $z.key_1=x.key_i$
+		\li $x.key_i=y.key_{y.n}$
+		\li \If not $z.leaf$
+		\li \Then $j=z.n$
+		\li       \While $j>0$
+		\li       \Then $z.c_{j+1}=z.c_j$
+		\li       $j=j-1$
+				  \End
+		\li       $z.c_1=y.c_{y.n+1}$
+		     \End
+		\li $y.n=y.n-1$
+		\li $\proc{DISK-WRITE}(x)$
+		\li $\proc{DISK-WRITE}(y)$
+		\li $\proc{DISK-WRITE}(z)$
+	\end{codebox}
+	\begin{codebox}
+		\Procname{$\proc{B-TREE-SHIFT-TO-LEFT-CHILD}$(x,i,y,z)}
+		\li $y.n=y.n+1$
+		\li $y.key_{y.n}=x.key_i$
+		\li $x.key_i=z.key_1$
+		\li $z.n=z.n-1$
+		\li $j=1$
+		\li \While $j\leqslant z.n$
+		\li \Then $z.key_j=z.key_{j+1}$
+		\li       $j=j+1$
+			\End
+		\li \If not $z.leaf$
+		\li \Then $y.c_{y.n+1}=z.c_1$
+		\li       $j=1$
+		\li       \While $j\leqslant z.n+1$
+		\li       \Then $z.c_j=z.c_{j+1}$
+		\li             $j=j+1$
+				  \End
+		    \End
+		\li $\proc{DISK-WRITE}(x)$
+		\li $\proc{DISK-WRITE}(y)$
+		\li $\proc{DISK-WRITE}(z)$
+	\end{codebox}
+ 	\section{总结}
+	\section{实验测试}
+\end{document}
