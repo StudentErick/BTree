@@ -6,7 +6,6 @@ using namespace std;
 
 void Menu() {
 	cout << "========B-Trees 的设计与实现========" << endl;
-	cout << "        153403040424 吕伟华" << endl;
 	cout << "操作说明:" << endl;
 	cout << "1.建立B-Tree" << endl;
 	cout << "2.遍历输出B-Tree" << endl;
